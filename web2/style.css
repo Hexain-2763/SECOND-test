@@ -29,13 +29,21 @@ body {
   text-align: center;
 }
 
+.eyebrow {
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
 .hero h1 {
   margin: 0;
   font-size: clamp(2.5rem, 5vw, 4rem);
 }
 
 .hero p {
-  max-width: 680px;
+  max-width: 720px;
   margin: 1rem auto 2rem;
   color: var(--muted);
 }
@@ -56,6 +64,36 @@ button:hover {
   background: #22d3ee;
 }
 
+.feature-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.nav-btn {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 24px rgba(5, 10, 20, 0.16);
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.nav-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #f8fafc;
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.nav-btn.active {
+  background: rgba(56, 189, 248, 0.24);
+  color: #f8fafc;
+  border-color: rgba(56, 189, 248, 0.7);
+  outline: 2px solid rgba(56, 189, 248, 0.35);
+  outline-offset: 2px;
+}
+
 section {
   padding: 2rem 0;
 }
@@ -64,36 +102,163 @@ section h2 {
   margin-top: 0;
 }
 
-section p,
-section li {
+section p {
   color: var(--muted);
 }
 
-ul {
-  padding-left: 1.2rem;
-}
-
-.cards {
+.dashboard {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: 1.2fr 0.9fr;
+  align-items: start;
 }
 
-article {
+.dashboard-left {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.card {
   background: rgba(15, 23, 42, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
   padding: 1.5rem;
+  box-shadow: 0 20px 45px rgba(2, 6, 23, 0.24);
 }
 
-article h3 {
-  margin-top: 0;
+.time-card {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.95), rgba(30, 41, 59, 0.95));
+}
+
+.weather-card {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.24), rgba(15, 23, 42, 0.95));
+}
+
+.calculator-card {
+  background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(15, 23, 42, 0.95));
+}
+
+.fact-card {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(15, 23, 42, 0.95));
+}
+
+.conversion-card {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(15, 23, 42, 0.95));
+}
+
+.clock {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0.5rem 0;
+}
+
+.timezone {
+  font-weight: 600;
+  color: #bae6fd;
+  margin-bottom: 0.25rem;
+}
+
+.weather-temp {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0.5rem 0;
+}
+
+.weather-desc,
+.weather-meta {
+  margin: 0.25rem 0;
+}
+
+.calculator {
+  margin-top: 1rem;
+}
+
+.converter {
+  margin-top: 1rem;
+}
+
+.converter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.converter-label {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.converter input,
+.converter select {
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.7rem;
+  background: #020617;
+  color: var(--text);
+}
+
+.converter-arrow {
+  color: #bae6fd;
+  font-weight: 700;
+}
+
+.conversion-result {
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: #fef3c7;
+}
+
+#calcDisplay {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  background: #020617;
+  color: var(--text);
+  font-size: 1.2rem;
+  text-align: right;
+}
+
+.calc-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.calc-btn {
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+  background: #1e293b;
+  color: var(--text);
+}
+
+.calc-btn:hover {
+  background: #334155;
+}
+
+.calc-btn-wide {
+  grid-column: span 4;
 }
 
 footer {
   padding: 1.5rem 0;
   text-align: center;
   color: var(--muted);
+}
+
+#factButton {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {

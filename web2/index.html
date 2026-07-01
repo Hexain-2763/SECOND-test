@@ -3,47 +3,110 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Web2 Demo Site</title>
+  <title>InfoSite</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="hero">
     <div class="container">
-      <h1>Welcome to Web2</h1>
-      <p>A clean, standalone demo website built only inside the <strong>web2</strong> folder.</p>
-      <button id="actionButton">Show a welcome message</button>
+      <p class="eyebrow">Interactive demo</p>
+      <h1>Welcome to InfoSite</h1>
+      <p>Your quick stop for the essentials: the time, the weather, a calculator, a converter, and a helpful fact.</p>
+      <div class="feature-nav">
+        <button class="nav-btn" data-target="time-card" type="button">Time</button>
+        <button class="nav-btn" data-target="weather-card" type="button">Weather</button>
+        <button class="nav-btn" data-target="calculator-card" type="button">Calculator</button>
+        <button class="nav-btn" data-target="conversion-card" type="button">Convert</button>
+        <button class="nav-btn" data-target="fact-card" type="button">Fact</button>
+      </div>
     </div>
   </header>
 
   <main class="container">
-    <section>
-      <h2>About This Site</h2>
-      <p>This site is independent from <code>web1</code> and does not touch or change any files there.</p>
-      <ul>
-        <li>Responsive layout</li>
-        <li>Simple dark/light theme switcher</li>
-        <li>Interactive JavaScript button</li>
-      </ul>
+    <section class="dashboard">
+      <div class="dashboard-left">
+        <article class="card time-card" id="time-card">
+          <h2>Current time</h2>
+          <p class="clock" id="clock">--:--:--</p>
+          <p class="timezone" id="timezone">Checking timezone…</p>
+          <p>Your device’s local time is shown here.</p>
+        </article>
+
+        <article class="card weather-card" id="weather-card">
+          <h2>Weather</h2>
+          <p class="weather-temp" id="weatherTemp">--</p>
+          <p class="weather-desc" id="weatherDesc">Checking your location…</p>
+          <p class="weather-meta" id="weatherMeta">Using your browser location</p>
+        </article>
+
+        <article class="card conversion-card" id="conversion-card">
+          <h2>Measurement converter</h2>
+          <p>Switch between metric and customary units instantly.</p>
+          <div class="converter" id="converter">
+            <div class="converter-row">
+              <label class="converter-label" for="conversionType">Category</label>
+              <select id="conversionType">
+                <option value="temp">Temperature</option>
+                <option value="length">Length</option>
+                <option value="weight">Weight</option>
+              </select>
+            </div>
+            <div class="converter-row">
+              <input type="number" id="convertInput" value="32" step="any" />
+              <select id="fromUnit"></select>
+              <span class="converter-arrow">→</span>
+              <select id="toUnit"></select>
+            </div>
+            <p class="conversion-result" id="conversionResult">32°F = 0°C</p>
+          </div>
+        </article>
+
+        <section class="card fact-card" id="fact-card">
+          <h2>Quick fact</h2>
+          <p id="factText">Loading a fun fact…</p>
+          <button id="factButton" type="button">Show another fact</button>
+        </section>
+      </div>
+
+      <article class="card calculator-card" id="calculator-card">
+        <h2>Quick calculator</h2>
+        <p>Try a few simple calculations without leaving the page.</p>
+        <div class="calculator" id="calculator">
+          <input type="text" id="calcDisplay" value="0" readonly />
+          <div class="calc-buttons">
+            <button class="calc-btn" data-value="7">7</button>
+            <button class="calc-btn" data-value="8">8</button>
+            <button class="calc-btn" data-value="9">9</button>
+            <button class="calc-btn" data-value="/">÷</button>
+            <button class="calc-btn" data-value="4">4</button>
+            <button class="calc-btn" data-value="5">5</button>
+            <button class="calc-btn" data-value="6">6</button>
+            <button class="calc-btn" data-value="*">×</button>
+            <button class="calc-btn" data-value="1">1</button>
+            <button class="calc-btn" data-value="2">2</button>
+            <button class="calc-btn" data-value="3">3</button>
+            <button class="calc-btn" data-value="-">−</button>
+            <button class="calc-btn" data-value="0">0</button>
+            <button class="calc-btn" data-value=".">.</button>
+            <button class="calc-btn" data-value="=">=</button>
+            <button class="calc-btn" data-value="+">+</button>
+            <button class="calc-btn" data-value="^">x²</button>
+            <button class="calc-btn" data-value="sqrt">√</button>
+            <button class="calc-btn" data-value="back">⌫</button>
+            <button class="calc-btn" data-value="C">C</button>
+          </div>
+        </div>
+      </article>
     </section>
 
-    <section class="cards">
-      <article>
-        <h3>Fast</h3>
-        <p>Built with plain HTML, CSS, and JavaScript for quick loading and easy editing.</p>
-      </article>
-      <article>
-        <h3>Standalone</h3>
-        <p>All files live in <code>web2</code> only, with no dependencies on <code>web1</code>.</p>
-      </article>
-      <article>
-        <h3>Customizable</h3>
-        <p>Edit the content, styles, or scripts directly inside the folder to make it your own.</p>
-      </article>
+    <section>
+      <h2>What changed</h2>
+      <p>This version is now styled as an InfoSite hub, with the most useful tools placed front and center.</p>
     </section>
   </main>
 
   <footer>
-    <p>Made for the <code>web2</code> folder. No changes were made to <code>web1</code>.</p>
+    <p>Made for the web2 folder. No changes were made to web1.</p>
   </footer>
 
   <script src="script.js"></script>
