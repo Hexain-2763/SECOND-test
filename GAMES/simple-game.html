@@ -51,7 +51,11 @@
   <div class="wrap">
     <div class="hud">
       <div>Defend the city</div>
-      <div>Score: <span id="score">0</span> | City HP: <span id="hp">100</span></div>
+      <div>
+        Score: <span id="score">0</span>
+        | City HP: <span id="hp">100</span>
+        | Wall HP: <span id="wall">360</span>
+      </div>
     </div>
     <canvas id="game" width="960" height="540"></canvas>
   </div>
@@ -70,8 +74,8 @@
       bullets: [],
       enemies: [],
       player: {
-        x: canvas.width * 0.8,
-        y: canvas.height * 0.8,
+        x: canvas.width / 2,
+        y: canvas.height / 2,
         radius: 18,
         speed: 180,
         vx: 0,
@@ -80,7 +84,11 @@
       city: {
         x: canvas.width / 2,
         y: canvas.height / 2,
-        radius: 120
+        radius: 180,
+        shape: [],
+        wallRadius: 204,
+        wallHp: 360,
+        wallMaxHp: 360
       },
       keys: {
         ArrowUp: false,
@@ -93,7 +101,7 @@
         KeyD: false
       },
       spawnTimer: 0,
-      spawnDelay: 1.2,
+      spawnDelay: 2.0,
       lastTime: 0,
       gameOver: false
     };
@@ -140,15 +148,15 @@
 
     function spawnEnemy() {
       const angle = Math.random() * Math.PI * 2;
-      const spawnRadius = state.city.radius + 72;
+      const spawnRadius = state.city.wallRadius + 100;
       const x = state.city.x + Math.cos(angle) * spawnRadius;
       const y = state.city.y + Math.sin(angle) * spawnRadius;
       state.enemies.push({
         x,
         y,
         radius: 16 + Math.random() * 6,
-        speed: 35 + Math.random() * 10,
-        hp: 3
+        speed: 30 + Math.random() * 8,
+        hp: 5
       });
     }
 
@@ -197,11 +205,12 @@
         enemy.x += (dx / dist) * enemy.speed * dt;
         enemy.y += (dy / dist) * enemy.speed * dt;
 
-        if (dist <= state.city.radius + enemy.radius + 4) {
+        if (dist <= state.city.wallRadius + enemy.radius) {
           state.enemies.splice(i, 1);
-          state.cityHp -= 20;
-          if (state.cityHp <= 0) {
-            state.cityHp = 0;
+          state.city.wallHp -= 25;
+          if (state.city.wallHp <= 0) {
+            state.city.wallHp = 0;
+            state.city.wallRadius = state.city.radius + 8;
             state.gameOver = true;
           }
         }
@@ -227,6 +236,7 @@
 
       scoreEl.textContent = state.score;
       hpEl.textContent = state.cityHp;
+      document.getElementById('wall').textContent = state.city.wallHp;
     }
 
     function drawBackground() {
@@ -235,49 +245,61 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const city = state.city;
-      const redRadius = city.radius + 72;
+      const dangerRadius = city.wallRadius + 18;
+      const baseColor = state.gameOver ? '#752626' : '#6f2a2a';
+      const innerColor = state.gameOver ? '#9f4040' : '#8f3b3b';
+      const cityFill = state.gameOver ? '#a52727' : '#2b5cbc';
+      const wallStroke = state.gameOver ? '#5c1c1c' : '#1b3f76';
 
-      ctx.fillStyle = '#6f2a2a';
+      ctx.fillStyle = baseColor;
       ctx.beginPath();
-      ctx.arc(city.x, city.y, redRadius, 0, Math.PI * 2);
+      ctx.arc(city.x, city.y, dangerRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#8f3b3b';
+      ctx.fillStyle = innerColor;
       ctx.beginPath();
-      ctx.arc(city.x, city.y, redRadius - 18, 0, Math.PI * 2);
+      ctx.arc(city.x, city.y, city.wallRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // city core
-      ctx.fillStyle = '#2b5cbc';
+      // city core with irregular edges
+      ctx.fillStyle = cityFill;
       ctx.beginPath();
-      ctx.arc(city.x, city.y, city.radius, 0, Math.PI * 2);
+      const segments = 18;
+      for (let i = 0; i <= segments; i++) {
+        const angle = (Math.PI * 2 / segments) * i;
+        const radius = city.radius + Math.sin(i * 1.3) * 12 + Math.cos(i * 1.7) * 8;
+        const px = city.x + Math.cos(angle) * radius;
+        const py = city.y + Math.sin(angle) * radius;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
       ctx.fill();
 
-      // city wall
-      ctx.strokeStyle = '#1b3f76';
+      ctx.strokeStyle = wallStroke;
       ctx.lineWidth = 14;
       ctx.beginPath();
-      ctx.arc(city.x, city.y, city.radius + 10, 0, Math.PI * 2);
+      ctx.arc(city.x, city.y, city.wallRadius, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 4;
-      ctx.setLineDash([12, 8]);
+      ctx.setLineDash([14, 8]);
       ctx.beginPath();
-      ctx.arc(city.x, city.y, city.radius + 35, 0, Math.PI * 2);
+      ctx.arc(city.x, city.y, city.wallRadius + 28, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 20px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('CITY CORE', city.x, city.y - 12);
+      ctx.fillText(state.gameOver ? 'CITY CAPTURED' : 'CITY CORE', city.x, city.y - 12);
       ctx.font = '16px Arial';
-      ctx.fillText('Stay inside the blue circle', city.x, city.y + 16);
+      ctx.fillText(state.gameOver ? 'The city has fallen' : 'Stay inside the blue area', city.x, city.y + 16);
 
       ctx.fillStyle = '#ffd8d8';
       ctx.font = '18px Arial';
-      ctx.fillText('Attackers approaching!', city.x, city.y + redRadius + 30);
+      ctx.fillText(state.gameOver ? 'ALLIES LOST' : 'Attackers approaching!', city.x, city.y + dangerRadius + 30);
     }
 
     function drawPlayer() {
