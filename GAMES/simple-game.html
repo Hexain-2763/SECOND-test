@@ -69,9 +69,31 @@
       cityHp: 100,
       bullets: [],
       enemies: [],
-      player: { x: canvas.width * 0.8, y: canvas.height * 0.8, radius: 18 },
+      player: {
+        x: canvas.width * 0.8,
+        y: canvas.height * 0.8,
+        radius: 18,
+        speed: 180,
+        vx: 0,
+        vy: 0
+      },
+      city: {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        radius: 120
+      },
+      keys: {
+        ArrowUp: false,
+        ArrowDown: false,
+        ArrowLeft: false,
+        ArrowRight: false,
+        KeyW: false,
+        KeyA: false,
+        KeyS: false,
+        KeyD: false
+      },
       spawnTimer: 0,
-      spawnDelay: 0.9,
+      spawnDelay: 1.2,
       lastTime: 0,
       gameOver: false
     };
@@ -90,6 +112,15 @@
       if (event.code === 'Space') {
         event.preventDefault();
         if (!state.gameOver) shoot();
+      }
+      if (event.code in state.keys) {
+        state.keys[event.code] = true;
+      }
+    });
+
+    window.addEventListener('keyup', (event) => {
+      if (event.code in state.keys) {
+        state.keys[event.code] = false;
       }
     });
 
@@ -113,7 +144,7 @@
         x: -20,
         y,
         radius: 12 + Math.random() * 6,
-        speed: 90 + Math.random() * 50,
+        speed: 55 + Math.random() * 25,
         hp: 1
       });
     }
@@ -125,7 +156,7 @@
       if (state.spawnTimer >= state.spawnDelay) {
         state.spawnTimer = 0;
         spawnEnemy();
-        state.spawnDelay = Math.max(0.35, state.spawnDelay - 0.01);
+        state.spawnDelay = Math.max(0.55, state.spawnDelay - 0.01);
       }
 
       for (let i = state.bullets.length - 1; i >= 0; i--) {
@@ -169,8 +200,16 @@
         }
       }
 
-      state.player.x += (state.mouseX - state.player.x) * 0.12;
-      state.player.y += (state.mouseY - state.player.y) * 0.12;
+      const inputX = (state.keys.ArrowRight || state.keys.KeyD ? 1 : 0) - (state.keys.ArrowLeft || state.keys.KeyA ? 1 : 0);
+      const inputY = (state.keys.ArrowDown || state.keys.KeyS ? 1 : 0) - (state.keys.ArrowUp || state.keys.KeyW ? 1 : 0);
+      const inputLength = Math.hypot(inputX, inputY) || 1;
+      state.player.vx = (inputX / inputLength) * state.player.speed;
+      state.player.vy = (inputY / inputLength) * state.player.speed;
+      state.player.x += state.player.vx * dt;
+      state.player.y += state.player.vy * dt;
+
+      state.player.x = Math.max(state.player.radius, Math.min(canvas.width - state.player.radius, state.player.x));
+      state.player.y = Math.max(state.player.radius, Math.min(canvas.height - state.player.radius, state.player.y));
 
       scoreEl.textContent = state.score;
       hpEl.textContent = state.cityHp;
@@ -178,23 +217,46 @@
 
     function drawBackground() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#8f4f4f';
-      ctx.fillRect(0, 0, canvas.width * 0.45, canvas.height);
-      ctx.fillStyle = '#5f7890';
-      ctx.fillRect(canvas.width * 0.45, 0, canvas.width * 0.55, canvas.height);
+      ctx.fillStyle = '#2b1515';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = '#2a2a2a';
-      ctx.fillRect(canvas.width * 0.45 - 2, 0, 4, canvas.height);
+      const city = state.city;
+      const redRadius = city.radius + 170;
 
-      ctx.fillStyle = '#2b2b2b';
-      ctx.fillRect(0, canvas.height * 0.78, canvas.width, canvas.height * 0.22);
-
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 2;
+      ctx.fillStyle = '#772f2f';
       ctx.beginPath();
-      ctx.moveTo(canvas.width * 0.45, 0);
-      ctx.lineTo(canvas.width * 0.45, canvas.height);
+      ctx.arc(city.x, city.y, redRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.beginPath();
+      ctx.arc(city.x, city.y, redRadius - 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      const blueGradient = ctx.createRadialGradient(city.x, city.y, city.radius * 0.2, city.x, city.y, city.radius);
+      blueGradient.addColorStop(0, '#e3f4ff');
+      blueGradient.addColorStop(1, '#1f4d79');
+      ctx.fillStyle = blueGradient;
+      ctx.beginPath();
+      ctx.arc(city.x, city.y, city.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#8fc6ff';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(city.x, city.y, city.radius + 8, 0, Math.PI * 2);
       ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('CITY CORE', city.x, city.y - 10);
+      ctx.font = '16px Arial';
+      ctx.fillText('Protect this blue area', city.x, city.y + 18);
+
+      ctx.fillStyle = '#ffdada';
+      ctx.font = '18px Arial';
+      ctx.fillText('RED DANGER ZONE', city.x, city.y + redRadius + 40);
     }
 
     function drawPlayer() {
