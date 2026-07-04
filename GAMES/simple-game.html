@@ -22,7 +22,7 @@
     }
 
     .wrap {
-      width: min(96vw, 980px);
+      width: min(96vw, 1220px);
       display: grid;
       gap: 10px;
     }
@@ -54,10 +54,11 @@
       <div>
         Score: <span id="score">0</span>
         | City HP: <span id="hp">100</span>
-        | Wall HP: <span id="wall">360</span>
+        | Wall HP: <span id="wall">420</span>
+        | Charge: <span id="charge">0%</span>
       </div>
     </div>
-    <canvas id="game" width="960" height="540"></canvas>
+    <canvas id="game" width="1160" height="760"></canvas>
   </div>
 
   <script>
@@ -73,13 +74,17 @@
       cityHp: 100,
       bullets: [],
       enemies: [],
+      allies: [],
       player: {
         x: canvas.width / 2,
         y: canvas.height / 2,
         radius: 18,
         speed: 180,
         vx: 0,
-        vy: 0
+        vy: 0,
+        charging: false,
+        chargeTime: 0,
+        maxCharge: 1.5
       },
       city: {
         x: canvas.width / 2,
@@ -88,7 +93,10 @@
         shape: [],
         wallRadius: 260,
         wallHp: 420,
-        wallMaxHp: 420
+        wallMaxHp: 420,
+        collapsing: false,
+        collapseTimer: 0,
+        collapseDuration: 2.2
       },
       keys: {
         ArrowUp: false,
@@ -112,14 +120,45 @@
       state.mouseY = ((event.clientY - rect.top) / rect.height) * canvas.height;
     });
 
-    canvas.addEventListener('mousedown', () => {
-      if (!state.gameOver) shoot();
+    function createAllies() {
+      const count = 4;
+      const innerRadius = state.city.radius - 50;
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 / count) * i + Math.random() * 0.4;
+        state.allies.push({
+          x: state.city.x + Math.cos(angle) * innerRadius,
+          y: state.city.y + Math.sin(angle) * innerRadius,
+          radius: 16,
+          hp: 14,
+          speed: 70,
+          attackCooldown: 0,
+          attackRate: 0.7
+        });
+      }
+    }
+
+    createAllies();
+
+    canvas.addEventListener('mousedown', (event) => {
+      if (event.button === 0 && !state.gameOver) {
+        state.player.charging = true;
+      }
+    });
+
+    canvas.addEventListener('mouseup', (event) => {
+      if (event.button === 0 && state.player.charging && !state.gameOver) {
+        shoot();
+        state.player.charging = false;
+        state.player.chargeTime = 0;
+      }
     });
 
     window.addEventListener('keydown', (event) => {
       if (event.code === 'Space') {
         event.preventDefault();
-        if (!state.gameOver) shoot();
+        if (!state.gameOver) {
+          state.player.charging = true;
+        }
       }
       if (event.code in state.keys) {
         state.keys[event.code] = true;
@@ -127,6 +166,11 @@
     });
 
     window.addEventListener('keyup', (event) => {
+      if (event.code === 'Space' && state.player.charging && !state.gameOver) {
+        shoot();
+        state.player.charging = false;
+        state.player.chargeTime = 0;
+      }
       if (event.code in state.keys) {
         state.keys[event.code] = false;
       }
@@ -136,13 +180,17 @@
       const dx = state.mouseX - state.player.x;
       const dy = state.mouseY - state.player.y;
       const dist = Math.hypot(dx, dy) || 1;
+      const charge = Math.min(state.player.chargeTime / state.player.maxCharge, 1);
+      const power = 1 + Math.round(charge * 4);
+      const speed = 420 + charge * 180;
       state.bullets.push({
         x: state.player.x,
         y: state.player.y,
-        vx: (dx / dist) * 550,
-        vy: (dy / dist) * 550,
-        radius: 5,
-        life: 1.2
+        vx: (dx / dist) * speed,
+        vy: (dy / dist) * speed,
+        radius: 5 + charge * 3,
+        life: 1.6,
+        power
       });
     }
 
@@ -187,7 +235,7 @@
           const dx = bullet.x - enemy.x;
           const dy = bullet.y - enemy.y;
           if (Math.hypot(dx, dy) <= bullet.radius + enemy.radius) {
-            enemy.hp -= 1;
+            enemy.hp -= bullet.power;
             state.bullets.splice(i, 1);
             if (enemy.hp <= 0) {
               state.enemies.splice(j, 1);
@@ -216,8 +264,30 @@
           enemy.y += (dy / dist) * enemy.speed * dt;
         }
 
-        if (enemy.atWall) {
-          state.city.wallHp -= 18 * dt;
+        let enemyHitAlly = false;
+        for (let j = state.allies.length - 1; j >= 0; j--) {
+          const ally = state.allies[j];
+          const ax = ally.x - enemy.x;
+          const ay = ally.y - enemy.y;
+          const adist = Math.hypot(ax, ay) || 1;
+          if (adist <= enemy.radius + ally.radius) {
+            ally.hp -= 18 * dt;
+            enemy.hp -= 9 * dt;
+            enemyHitAlly = true;
+            if (ally.hp <= 0) {
+              state.allies.splice(j, 1);
+            }
+          }
+        }
+
+        if (enemy.hp <= 0) {
+          state.enemies.splice(i, 1);
+          state.score += 15;
+          continue;
+        }
+
+        if (enemy.atWall && !enemyHitAlly) {
+          state.city.wallHp -= 12 * dt;
           if (state.city.wallHp <= 0) {
             state.city.wallHp = 0;
             state.city.collapsing = true;
@@ -244,6 +314,10 @@
         state.player.y = state.city.y + dy * scale;
       }
 
+      if (state.player.charging) {
+        state.player.chargeTime = Math.min(state.player.chargeTime + dt, state.player.maxCharge);
+      }
+
       if (state.city.collapsing) {
         state.city.collapseTimer += dt;
         if (state.city.collapseTimer >= state.city.collapseDuration) {
@@ -254,6 +328,58 @@
       scoreEl.textContent = state.score;
       hpEl.textContent = state.cityHp;
       document.getElementById('wall').textContent = Math.max(0, Math.ceil(state.city.wallHp));
+      document.getElementById('charge').textContent = `${Math.round((state.player.chargeTime / state.player.maxCharge) * 100)}%`;
+    }
+
+    function updateAllies(dt) {
+      for (let i = state.allies.length - 1; i >= 0; i--) {
+        const ally = state.allies[i];
+        if (ally.hp <= 0) {
+          state.allies.splice(i, 1);
+          continue;
+        }
+
+        if (ally.attackCooldown > 0) {
+          ally.attackCooldown -= dt;
+        }
+
+        let target = null;
+        let nearest = Infinity;
+        for (const enemy of state.enemies) {
+          if (enemy.atWall) continue;
+          const dx = enemy.x - ally.x;
+          const dy = enemy.y - ally.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < nearest) {
+            nearest = dist;
+            target = enemy;
+          }
+        }
+
+        if (target) {
+          const dx = target.x - ally.x;
+          const dy = target.y - ally.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          const speed = ally.speed * (dist > ally.radius + target.radius + 10 ? 1 : 0.4);
+          ally.x += (dx / dist) * speed * dt;
+          ally.y += (dy / dist) * speed * dt;
+
+          if (dist <= ally.radius + target.radius + 3 && ally.attackCooldown <= 0) {
+            target.hp -= 12;
+            ally.attackCooldown = ally.attackRate;
+          }
+        }
+
+        const dx = ally.x - state.city.x;
+        const dy = ally.y - state.city.y;
+        const dist = Math.hypot(dx, dy);
+        const maxDist = state.city.radius - ally.radius - 8;
+        if (dist > maxDist) {
+          const scale = maxDist / dist;
+          ally.x = state.city.x + dx * scale;
+          ally.y = state.city.y + dy * scale;
+        }
+      }
     }
 
     function drawBackground() {
@@ -332,6 +458,16 @@
       ctx.fillStyle = '#ffd8d8';
       ctx.font = '18px Arial';
       ctx.fillText(state.gameOver ? 'ALLIES LOST' : 'Attackers approaching!', city.x, city.y + dangerRadius + 30);
+
+      if (state.player.charging) {
+        const chargeRatio = state.player.chargeTime / state.player.maxCharge;
+        const chargeRadius = 30 + chargeRatio * 20;
+        ctx.strokeStyle = `rgba(255, 215, 80, ${0.65 + chargeRatio * 0.25})`;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(state.player.x, state.player.y, chargeRadius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     function drawPlayer() {
@@ -375,6 +511,20 @@
       });
     }
 
+    function drawAllies() {
+      state.allies.forEach((ally) => {
+        ctx.fillStyle = '#7bb36b';
+        ctx.beginPath();
+        ctx.arc(ally.x, ally.y, ally.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#e6f3d1';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(ally.x, ally.y, ally.radius + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    }
+
     function drawOverlay() {
       if (!state.gameOver) return;
       ctx.fillStyle = 'rgba(0,0,0,0.7)';
@@ -391,8 +541,10 @@
       const dt = Math.min(0.032, (time - state.lastTime) / 1000 || 0.016);
       state.lastTime = time;
       update(dt);
+      updateAllies(dt);
       drawBackground();
       drawEnemies();
+      drawAllies();
       drawBullets();
       drawPlayer();
       drawOverlay();
