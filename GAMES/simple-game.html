@@ -57,7 +57,7 @@
     <div class="hud">
       <div>Defend the city</div>
       <div>
-        <span style="color:#7bb36b">Blue</span> <span id="blueCasualties">0</span>
+        Casualties: <span style="color:#7bb36b">Blue</span> <span id="blueCasualties">0</span>
         : <span id="redCasualties">0</span> <span style="color:#c95b5b">Red</span>
         | City HP: <span id="hp">100</span>
         | Wall HP: <span id="wall">420</span>
@@ -270,8 +270,18 @@
         hp: 8,
         atWall: false,
         attackTimer: 0,
-        attackRate: 1.4
+        attackRate: 1.4,
+        weapon: Math.random() < 0.5 ? 'spear' : 'bow'
       });
+    }
+
+    function updateHud() {
+      blueCasualtiesEl.textContent = state.blueCasualties;
+      redCasualtiesEl.textContent = state.redCasualties;
+      hpEl.textContent = state.cityHp;
+      document.getElementById('wall').textContent = Math.max(0, Math.ceil(state.city.wallHp));
+      const bowReady = state.player.cooldown <= 0;
+      document.getElementById('charge').textContent = `${Math.round((state.player.chargeTime / state.player.maxCharge) * 100)}%${bowReady ? ' • Ready' : ` • ${state.player.cooldown.toFixed(2)}s`}`;
     }
 
     function update(dt) {
@@ -407,12 +417,7 @@
         }
       }
 
-      blueCasualtiesEl.textContent = state.blueCasualties;
-      redCasualtiesEl.textContent = state.redCasualties;
-      hpEl.textContent = state.cityHp;
-      document.getElementById('wall').textContent = Math.max(0, Math.ceil(state.city.wallHp));
-      const bowReady = state.player.cooldown <= 0;
-      document.getElementById('charge').textContent = `${Math.round((state.player.chargeTime / state.player.maxCharge) * 100)}%${bowReady ? ' • Ready' : ` • ${state.player.cooldown.toFixed(2)}s`}`;
+      updateHud();
     }
 
     function updateAllies(dt) {
