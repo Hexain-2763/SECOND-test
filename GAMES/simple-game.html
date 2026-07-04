@@ -147,17 +147,17 @@
 
     function createAllies() {
       const count = 10;
-      const ringRadius = state.city.wallRadius + 70;
+      const ringRadius = state.city.wallRadius + 18;
       for (let i = 0; i < count; i++) {
-        const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
+        const angle = (Math.PI * 2 / count) * i + Math.random() * 0.25;
         state.allies.push({
           x: state.city.x + Math.cos(angle) * ringRadius,
           y: state.city.y + Math.sin(angle) * ringRadius,
           radius: 14,
           hp: 14,
-          speed: 72,
+          speed: 68,
           attackCooldown: 0,
-          attackRate: 0.9,
+          attackRate: 0.95,
           weapon: 'crossbow'
         });
       }
@@ -168,7 +168,7 @@
       const count = 24;
       for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 / count) * i + Math.random() * 0.15;
-        const radius = state.city.wallRadius + 70 + Math.random() * 60;
+        const radius = 24 + Math.random() * 120;
         state.territory.push({
           x: state.city.x + Math.cos(angle) * radius,
           y: state.city.y + Math.sin(angle) * radius,
@@ -250,9 +250,10 @@
         y: state.player.y,
         vx: (dx / dist) * speed,
         vy: (dy / dist) * speed,
-        radius: 5 + charge * 3,
+        radius: 4 + charge * 2,
         life: 1.6,
-        power
+        power,
+        isArrow: true
       });
       state.player.cooldown = state.player.maxCooldown;
     }
@@ -291,7 +292,7 @@
       if (!state.city.collapsing && state.spawnTimer >= state.spawnDelay) {
         state.spawnTimer = 0;
         spawnEnemy();
-        state.spawnDelay = Math.max(1.2, state.spawnDelay - 0.02);
+        state.spawnDelay = Math.max(1.05, state.spawnDelay - 0.015);
       }
 
       for (let i = state.bullets.length - 1; i >= 0; i--) {
@@ -382,6 +383,25 @@
             }
           }
         }
+
+        if (enemy.atWall && Math.random() < 0.02 * dt * 60) {
+          const attackTarget = Math.random() < 0.5 ? state.player : state.allies[Math.floor(Math.random() * state.allies.length)] || null;
+          if (attackTarget) {
+            const tx = attackTarget.x - enemy.x;
+            const ty = attackTarget.y - enemy.y;
+            const td = Math.hypot(tx, ty) || 1;
+            state.alliedShots.push({
+              x: enemy.x,
+              y: enemy.y,
+              vx: (tx / td) * 250,
+              vy: (ty / td) * 250,
+              radius: 3,
+              life: 1.2,
+              isArrow: true,
+              fromEnemy: true
+            });
+          }
+        }
       }
 
       const inputX = (state.keys.ArrowRight || state.keys.KeyD ? 1 : 0) - (state.keys.ArrowLeft || state.keys.KeyA ? 1 : 0);
@@ -463,7 +483,8 @@
               vx: (shotDx / shotDist) * 360,
               vy: (shotDy / shotDist) * 360,
               radius: 3,
-              life: 1.1
+              life: 1.1,
+              isArrow: true
             });
             ally.attackCooldown = ally.attackRate;
           }
@@ -472,7 +493,7 @@
         const dx = ally.x - state.city.x;
         const dy = ally.y - state.city.y;
         const dist = Math.hypot(dx, dy);
-        const maxDist = state.city.wallRadius + 130;
+        const maxDist = state.city.wallRadius + 70;
         if (dist > maxDist) {
           const scale = maxDist / dist;
           ally.x = state.city.x + dx * scale;
@@ -491,16 +512,23 @@
           state.alliedShots.splice(i, 1);
           continue;
         }
-        for (let j = state.enemies.length - 1; j >= 0; j--) {
-          const enemy = state.enemies[j];
-          const dx = shot.x - enemy.x;
-          const dy = shot.y - enemy.y;
-          if (Math.hypot(dx, dy) <= shot.radius + enemy.radius) {
-            enemy.hp -= 4;
+
+        const targetList = shot.fromEnemy ? state.allies : state.enemies;
+        for (let j = targetList.length - 1; j >= 0; j--) {
+          const target = targetList[j];
+          const dx = shot.x - target.x;
+          const dy = shot.y - target.y;
+          if (Math.hypot(dx, dy) <= shot.radius + target.radius) {
+            target.hp -= shot.fromEnemy ? 3 : 4;
             state.alliedShots.splice(i, 1);
-            if (enemy.hp <= 0) {
-              state.enemies.splice(j, 1);
-              state.redCasualties += 1;
+            if (target.hp <= 0) {
+              if (shot.fromEnemy) {
+                state.allies.splice(j, 1);
+                state.blueCasualties += 1;
+              } else {
+                state.enemies.splice(j, 1);
+                state.redCasualties += 1;
+              }
             }
             break;
           }
@@ -510,6 +538,8 @@
 
     function updateTerritory() {
       state.territory.forEach((cell) => {
+        const insideCity = Math.hypot(cell.x - state.city.x, cell.y - state.city.y) < state.city.radius;
+        const insideWalls = Math.hypot(cell.x - state.city.x, cell.y - state.city.y) < state.city.wallRadius;
         let blueScore = 0;
         let redScore = 0;
         for (const ally of state.allies) {
@@ -518,8 +548,13 @@
         for (const enemy of state.enemies) {
           if (Math.hypot(enemy.x - cell.x, enemy.y - cell.y) < 90) redScore += 1;
         }
-        if (blueScore > redScore) cell.owner = 'blue';
-        else if (redScore > blueScore) cell.owner = 'red';
+        if (state.city.wallsDown && insideCity) {
+          cell.owner = redScore > blueScore ? 'red' : 'blue';
+        } else if (insideWalls) {
+          cell.owner = 'blue';
+        } else {
+          cell.owner = blueScore > redScore ? 'blue' : redScore > blueScore ? 'red' : 'neutral';
+        }
       });
     }
 
@@ -643,20 +678,41 @@
     }
 
     function drawBullets() {
-      ctx.fillStyle = '#ffd166';
       state.bullets.forEach((b) => {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        const angle = Math.atan2(b.vy, b.vx);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#c8a14d';
         ctx.beginPath();
-        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.moveTo(0, -2);
+        ctx.lineTo(10, 0);
+        ctx.lineTo(0, 2);
+        ctx.closePath();
         ctx.fill();
+        ctx.fillStyle = '#7a4b1d';
+        ctx.fillRect(-3, -1.5, 4, 3);
+        ctx.restore();
       });
     }
 
     function drawAlliedShots() {
-      ctx.fillStyle = '#86c5ff';
       state.alliedShots.forEach((shot) => {
+        ctx.save();
+        ctx.translate(shot.x, shot.y);
+        const angle = Math.atan2(shot.vy, shot.vx);
+        ctx.rotate(angle);
+        ctx.strokeStyle = shot.fromEnemy ? '#8a2d2d' : '#86c5ff';
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(shot.x, shot.y, shot.radius, 0, Math.PI * 2);
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(8, 0);
+        ctx.stroke();
+        ctx.fillStyle = shot.fromEnemy ? '#b85656' : '#4b8fd1';
+        ctx.beginPath();
+        ctx.arc(0, 0, 2, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       });
     }
 
@@ -712,11 +768,11 @@
       state.allies.forEach((ally) => {
         ctx.save();
         ctx.translate(ally.x, ally.y);
-        ctx.fillStyle = '#7bb36b';
+        ctx.fillStyle = '#4f7ddf';
         ctx.beginPath();
         ctx.arc(0, 0, ally.radius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#e6f3d1';
+        ctx.strokeStyle = '#dce8ff';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(0, 0, ally.radius + 4, 0, Math.PI * 2);
