@@ -157,7 +157,7 @@
 
     function createAllies() {
       const count = 12;
-      const ringRadius = state.city.radius * 0.45;
+      const ringRadius = state.city.radius * 0.28;
       for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 / count) * i + Math.random() * 0.2;
         state.allies.push({
@@ -175,14 +175,16 @@
 
     function createTerritory() {
       state.territory = [];
-      const count = 24;
+      const count = 18;
+      const ring = state.city.wallRadius + 70;
       for (let i = 0; i < count; i++) {
-        const angle = (Math.PI * 2 / count) * i + Math.random() * 0.15;
-        const radius = 24 + Math.random() * 120;
+        const angle = (Math.PI * 2 / count) * i + Math.random() * 0.12;
+        const radius = ring + Math.random() * 70;
         state.territory.push({
           x: state.city.x + Math.cos(angle) * radius,
           y: state.city.y + Math.sin(angle) * radius,
-          owner: 'neutral'
+          owner: 'neutral',
+          radius: 34 + Math.random() * 18
         });
       }
     }
@@ -254,14 +256,14 @@
       const dist = Math.hypot(dx, dy) || 1;
       const charge = Math.min(state.player.chargeTime / state.player.maxCharge, 1);
       const power = 1 + Math.round(charge * 4);
-      const speed = 320 + charge * 120;
+      const speed = 220 + charge * 80;
       state.bullets.push({
         x: state.player.x,
         y: state.player.y,
         vx: (dx / dist) * speed,
         vy: (dy / dist) * speed,
         radius: 4 + charge * 2,
-        life: 1.6,
+        life: 1.1,
         power,
         isArrow: true
       });
@@ -331,6 +333,19 @@
         bullet.y += bullet.vy * dt;
         bullet.life -= dt;
 
+        const dxToCity = state.city.x - bullet.x;
+        const dyToCity = state.city.y - bullet.y;
+        const distToCity = Math.hypot(dxToCity, dyToCity);
+        const wallHitRadius = state.city.wallRadius + 12;
+        const shouldClimbWall = Math.random() < 0.25;
+
+        if (distToCity <= wallHitRadius && !state.city.wallsDown && shouldClimbWall) {
+          bullet.vx *= 0.55;
+          bullet.vy *= 0.55;
+          bullet.y -= 18;
+          bullet.life = Math.min(bullet.life, 0.7);
+        }
+
         if (bullet.life <= 0 || bullet.x < -20 || bullet.x > canvas.width + 20 || bullet.y < -20 || bullet.y > canvas.height + 20) {
           state.bullets.splice(i, 1);
           continue;
@@ -394,7 +409,7 @@
           continue;
         }
 
-        if (enemy.atWall && !enemyHitAlly) {
+        if (enemy.atWall && !enemyHitAlly && Math.random() < 0.7) {
           enemy.attackTimer += dt;
           if (enemy.attackTimer >= enemy.attackRate) {
             enemy.attackTimer = 0;
@@ -414,7 +429,7 @@
           }
         }
 
-        if (enemy.atWall && Math.random() < 0.02 * dt * 60) {
+        if (enemy.atWall && Math.random() < 0.01 * dt * 60) {
           const attackTarget = Math.random() < 0.5 ? state.player : state.allies[Math.floor(Math.random() * state.allies.length)] || null;
           if (attackTarget) {
             const tx = attackTarget.x - enemy.x;
@@ -423,10 +438,10 @@
             state.alliedShots.push({
               x: enemy.x,
               y: enemy.y,
-              vx: (tx / td) * 180,
-              vy: (ty / td) * 180,
+              vx: (tx / td) * 120,
+              vy: (ty / td) * 120,
               radius: 3,
-              life: 1.2,
+              life: 0.9,
               isArrow: true,
               fromEnemy: true
             });
@@ -502,17 +517,17 @@
           ally.x += (dx / dist) * speed * dt;
           ally.y += (dy / dist) * speed * dt;
 
-          if (dist <= ally.radius + target.radius + 120 && ally.attackCooldown <= 0) {
+          if (dist <= ally.radius + target.radius + 70 && ally.attackCooldown <= 0) {
             const shotDx = target.x - ally.x;
             const shotDy = target.y - ally.y;
             const shotDist = Math.hypot(shotDx, shotDy) || 1;
             state.alliedShots.push({
               x: ally.x,
               y: ally.y,
-              vx: (shotDx / shotDist) * 360,
-              vy: (shotDy / shotDist) * 360,
+              vx: (shotDx / shotDist) * 260,
+              vy: (shotDy / shotDist) * 260,
               radius: 3,
-              life: 1.1,
+              life: 0.8,
               isArrow: true
             });
             ally.attackCooldown = ally.attackRate;
@@ -572,17 +587,21 @@
         let blueScore = 0;
         let redScore = 0;
         for (const ally of state.allies) {
-          if (Math.hypot(ally.x - cell.x, ally.y - cell.y) < 90) blueScore += 1;
+          if (Math.hypot(ally.x - cell.x, ally.y - cell.y) < cell.radius + 28) blueScore += 1;
         }
         for (const enemy of state.enemies) {
-          if (Math.hypot(enemy.x - cell.x, enemy.y - cell.y) < 90) redScore += 1;
+          if (Math.hypot(enemy.x - cell.x, enemy.y - cell.y) < cell.radius + 28) redScore += 1;
         }
-        if (state.city.wallsDown && insideCity) {
-          cell.owner = redScore > blueScore ? 'red' : 'blue';
-        } else if (insideWalls) {
+        if (insideWalls) {
           cell.owner = 'blue';
+        } else if (state.city.wallsDown && insideCity) {
+          cell.owner = redScore > blueScore ? 'red' : 'blue';
+        } else if (blueScore > redScore) {
+          cell.owner = 'blue';
+        } else if (redScore > blueScore) {
+          cell.owner = 'red';
         } else {
-          cell.owner = blueScore > redScore ? 'blue' : redScore > blueScore ? 'red' : 'neutral';
+          cell.owner = 'neutral';
         }
       });
     }
@@ -747,10 +766,10 @@
 
     function drawTerritory() {
       state.territory.forEach((cell) => {
-        const color = cell.owner === 'blue' ? 'rgba(77, 125, 255, 0.28)' : cell.owner === 'red' ? 'rgba(255, 92, 92, 0.28)' : 'rgba(255,255,255,0.08)';
+        const color = cell.owner === 'blue' ? 'rgba(77, 125, 255, 0.3)' : cell.owner === 'red' ? 'rgba(255, 92, 92, 0.3)' : 'rgba(255,255,255,0.08)';
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(cell.x, cell.y, 12, 0, Math.PI * 2);
+        ctx.arc(cell.x, cell.y, cell.radius, 0, Math.PI * 2);
         ctx.fill();
       });
     }
