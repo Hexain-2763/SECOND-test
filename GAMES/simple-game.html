@@ -27,6 +27,22 @@
     #hud .red  { color: #c95b5b; }
 
     canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+
+    #controls {
+      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+      padding: 10px 12px; z-index: 12;
+      background: rgba(12,12,12,0.78); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 999px; backdrop-filter: blur(6px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    #controls button {
+      border: none; border-radius: 999px; padding: 8px 12px; font-weight: 700;
+      cursor: pointer; color: #fff; background: linear-gradient(135deg, #4f7ddf, #2d5dcb);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    }
+    #controls button:hover { filter: brightness(1.08); }
+    #controls button:disabled { opacity: 0.55; cursor: not-allowed; filter: none; }
   </style>
 </head>
 <body>
@@ -34,12 +50,11 @@
 <div id="hud">
   <div class="left">
     <div>Defend the city</div>
-    <div class="upgrades"><span id="hud-upgrades">[R] +Soldier 50g  [U] Reinforce 100g  [L] 2nd Wall 300g</span></div>
+    <div class="upgrades"><span id="hud-upgrades">Use the buttons below to spend gold.</span></div>
   </div>
   <div class="right">
     <div>
-      Days: <span id="hud-days">1</span>
-      &nbsp;|&nbsp;Time: <span id="hud-time">Dawn</span>
+      Days Survived: <span id="hud-days">1</span>
       &nbsp;|&nbsp;Casualties:
       <span class="blue">Blue</span> <span id="hud-blue">0</span>
       &nbsp;:&nbsp;
@@ -51,6 +66,12 @@
   </div>
 </div>
 
+<div id="controls">
+  <button id="btn-recruit">Recruit +Soldier · 50g</button>
+  <button id="btn-reinforce">Reinforce Wall · 100/200g</button>
+  <button id="btn-outer">Outer Wall · 300g</button>
+</div>
+
 <canvas id="canvas"></canvas>
 
 <script>
@@ -60,14 +81,20 @@
 
   const hud = {
     days:     document.getElementById('hud-days'),
-    time:     document.getElementById('hud-time'),
     blue:     document.getElementById('hud-blue'),
     red:      document.getElementById('hud-red'),
     wall:     document.getElementById('hud-wall'),
     charge:   document.getElementById('hud-charge'),
     gold:     document.getElementById('hud-gold'),
     upgrades: document.getElementById('hud-upgrades'),
+    buttons: {
+      recruit: document.getElementById('btn-recruit'),
+      reinforce: document.getElementById('btn-reinforce'),
+      outer: document.getElementById('btn-outer'),
+    },
   };
+
+  const CHARGE_MAX = 2.2;
 
   // ── Initial sizing ──────────────────────────────────────────────────────────
   canvas.width  = window.innerWidth;
@@ -92,7 +119,7 @@
       speed: 140,
       vx: 0, vy: 0,
       cooldown: 0,
-      maxCooldown: 0.7,
+      maxCooldown: 0.5,
       weapon: 'longbow',
       charging: false,
       chargeTime: 0,
@@ -106,6 +133,8 @@
       wallMaxHp: 520,
       wallLevel: 1,
       wallsDown: false,
+      wallSegments: [],
+      gates: [],
       outerWall: { active: false, hp: 0, maxHp: 400, radius: 330 },
       collapsing: false,
       collapseTimer: 0,
@@ -120,11 +149,11 @@
     dayTimer: 0,
     dayDuration: 45,
     dayCount: 1,
-    timePhase: 'Dawn',
     waveCooldown: 0,
     waveInterval: 18,
     reinforcementTimer: 8 + Math.random() * 6,
     lastTime: 0,
+    territoryControl: 'blue',
     gameOver: false,
   };
 
@@ -148,17 +177,36 @@
   window.addEventListener('resize', resizeCanvas);
 
   // ── Initialization ──────────────────────────────────────────────────────────
+  function buildWallStructure() {
+    const city = state.city;
+    city.wallSegments = [];
+    city.gates = [];
+    const segmentCount = 28;
+    for (let i = 0; i < segmentCount; i++) {
+      const start = (Math.PI * 2 / segmentCount) * i;
+      const end = (Math.PI * 2 / segmentCount) * (i + 1);
+      city.wallSegments.push({ start, end, hp: 120, maxHp: 120 });
+    }
+    city.gates.push(
+      { angle: Math.PI * 0.25, hp: 70, maxHp: 70, width: 0.38 },
+      { angle: Math.PI * 1.25, hp: 70, maxHp: 70, width: 0.38 }
+    );
+  }
+
   function createAllies() {
-    const count = 12;
+    const count = 16;
     const ringRadius = state.city.wallRadius - 18;
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 / count) * i + Math.random() * 0.2;
       state.allies.push({
         x: state.city.x + Math.cos(angle) * ringRadius,
         y: state.city.y + Math.sin(angle) * ringRadius,
-        radius: 14, hp: 14, speed: 72,
+        radius: 14, hp: 24, maxHp: 24, speed: 72,
         attackCooldown: 0, attackRate: 0.9,
         weapon: 'crossbow', homeAngle: angle, homeRadius: ringRadius,
+        homeX: state.city.x + Math.cos(angle) * ringRadius,
+        homeY: state.city.y + Math.sin(angle) * ringRadius,
+        wounded: false, retreating: false, stunnedTimer: 0, healTimer: 0,
       });
     }
   }
@@ -185,7 +233,7 @@
   }
 
   function spawnInitialEnemies() {
-    const count = 40;
+    const count = 30;
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 / count) * i + Math.random() * 0.2;
       const spawnRadius = state.city.wallRadius + 90 + Math.random() * 40;
@@ -193,13 +241,19 @@
         x: state.city.x + Math.cos(angle) * spawnRadius,
         y: state.city.y + Math.sin(angle) * spawnRadius,
         radius: 14, speed: 16 + Math.random() * 4,
-        hp: 8, atWall: false, attackTimer: 0, attackRate: 1.8,
-        weapon: Math.random() < 0.5 ? 'spear' : 'bow',
+        hp: 20, maxHp: 20, atWall: false, attackTimer: 0, attackRate: 1.8,
+        weapon: Math.random() < 0.4 ? 'bow' : 'spear',
         shootCooldown: Math.random() * 2,
+        homeAngle: angle,
+        spreadOffset: (Math.random() - 0.5) * 1.2,
+        homeX: state.city.x + Math.cos(angle) * spawnRadius,
+        homeY: state.city.y + Math.sin(angle) * spawnRadius,
+        wounded: false, retreating: false, stunnedTimer: 0, healTimer: 0,
       });
     }
   }
 
+  buildWallStructure();
   createAllies();
   createTerritory();
   spawnInitialEnemies();
@@ -213,9 +267,12 @@
     state.allies.push({
       x: state.city.x + Math.cos(angle) * ringRadius,
       y: state.city.y + Math.sin(angle) * ringRadius,
-      radius: 14, hp: 14, speed: 72,
+      radius: 14, hp: 24, maxHp: 24, speed: 72,
       attackCooldown: 0, attackRate: 0.9,
       weapon: 'crossbow', homeAngle: angle, homeRadius: ringRadius,
+      homeX: state.city.x + Math.cos(angle) * ringRadius,
+      homeY: state.city.y + Math.sin(angle) * ringRadius,
+      wounded: false, retreating: false, stunnedTimer: 0, healTimer: 0,
     });
   }
 
@@ -245,13 +302,13 @@
     const dy   = state.mouseY - state.player.y;
     const dist = Math.hypot(dx, dy) || 1;
     let speed, power, radius;
-    if      (chargeTime < 1.0) { speed = 340; power = 2; radius = 4; }
-    else if (chargeTime < 2.0) { speed = 460; power = 3; radius = 5; }
-    else                       { speed = 590; power = 5; radius = 6; }
+    if      (chargeTime < 0.6) { speed = 480; power = 4; radius = 5; }
+    else if (chargeTime < 1.4) { speed = 640; power = 6; radius = 6; }
+    else                       { speed = 820; power = 9; radius = 8; }
     state.bullets.push({
       x: state.player.x, y: state.player.y,
       vx: (dx / dist) * speed, vy: (dy / dist) * speed,
-      radius, life: 2.5, power, isArrow: true,
+      radius, life: 2.8, power, isArrow: true,
     });
     state.player.cooldown = state.player.maxCooldown;
   }
@@ -264,14 +321,19 @@
       x: state.city.x + Math.cos(angle) * spawnRadius,
       y: state.city.y + Math.sin(angle) * spawnRadius,
       radius: 14, speed: 24 + Math.random() * 6,
-      hp: 8, atWall: false, attackTimer: 0, attackRate: 1.4,
-      weapon: Math.random() < 0.5 ? 'spear' : 'bow',
+      hp: 22, maxHp: 22, atWall: false, attackTimer: 0, attackRate: 1.4,
+      weapon: Math.random() < 0.4 ? 'bow' : 'spear',
       shootCooldown: Math.random() * 2,
+      homeAngle: angle,
+      spreadOffset: (Math.random() - 0.5) * 1.2,
+      homeX: state.city.x + Math.cos(angle) * spawnRadius,
+      homeY: state.city.y + Math.sin(angle) * spawnRadius,
+      wounded: false, retreating: false, stunnedTimer: 0, healTimer: 0,
     });
   }
 
   function spawnWave() {
-    const waveSize = 12 + state.dayCount * 4;
+    const waveSize = 8 + state.dayCount * 3;
     for (let i = 0; i < waveSize; i++) spawnEnemy();
     state.waveCooldown = 10 + Math.random() * 12;
   }
@@ -287,7 +349,6 @@
     hud.blue.textContent = String(state.blueCasualties);
     hud.red.textContent  = String(state.redCasualties);
     hud.days.textContent = String(state.dayCount);
-    hud.time.textContent = state.timePhase;
     hud.gold.textContent = `${Math.floor(state.gold)}g`;
 
     const city = state.city;
@@ -298,13 +359,7 @@
         (city.outerWall.active ? ` + outer ${Math.ceil(city.outerWall.hp)}` : '');
     }
 
-    const canRecruit = state.gold >= 50;
-    const upgradeOk  = city.wallLevel < 3 && state.gold >= (city.wallLevel === 1 ? 100 : 200);
-    const outerOk    = !city.outerWall.active && state.gold >= 300;
-    hud.upgrades.textContent =
-      `[R] +Soldier ${canRecruit ? '50g' : '(need 50g)'}` +
-      `  [U] Reinforce ${city.wallLevel >= 3 ? '(max)' : upgradeOk ? (city.wallLevel === 1 ? '100g' : '200g') : `(need ${city.wallLevel === 1 ? 100 : 200}g)`}` +
-      `  [L] 2nd Wall ${city.outerWall.active ? '(built)' : outerOk ? '300g' : '(need 300g)'}`;
+    hud.upgrades.textContent = 'Spend gold with the buttons below.';
 
     const p = state.player;
     if (p.cooldown > 0) {
@@ -314,12 +369,126 @@
     } else {
       const ct = p.chargeTime;
       hud.charge.textContent =
-        ct < 0.3 ? 'Drawing…' :
-        ct < 1.0 ? '● Normal' :
-        ct < 2.0 ? '●● Strong' :
-        ct < 3.0 ? '●●● MAX' :
+        ct < 0.25 ? 'Drawing…' :
+        ct < 0.8 ? '● Normal' :
+        ct < 1.6 ? '●● Strong' :
+        ct < CHARGE_MAX ? '●●● MAX' :
                    '✕ Overdrawn!';
     }
+
+    const recruitCost = 50;
+    const reinforceCost = city.wallLevel === 1 ? 100 : 200;
+    hud.buttons.recruit.disabled = state.gold < recruitCost || state.gameOver;
+    hud.buttons.recruit.textContent = `Recruit +Soldier · ${state.gold < recruitCost ? 'need 50g' : '50g'}`;
+    hud.buttons.reinforce.disabled = city.wallLevel >= 3 || state.gold < reinforceCost || state.gameOver;
+    hud.buttons.reinforce.textContent = city.wallLevel >= 3 ? 'Reinforce Wall · Max' : `Reinforce Wall · ${reinforceCost}g`;
+    hud.buttons.outer.disabled = city.outerWall.active || state.gold < 300 || state.gameOver;
+    hud.buttons.outer.textContent = city.outerWall.active ? 'Outer Wall · Built' : 'Outer Wall · 300g';
+  }
+
+  function getUnitEffectiveness(unit) {
+    return Math.max(0.35, unit.hp / unit.maxHp);
+  }
+
+  function applyUnitDamage(unit, amount) {
+    unit.hp -= amount;
+    if (!unit.wounded && unit.hp <= unit.maxHp * 0.35) {
+      unit.wounded = true;
+      unit.retreating = true;
+      unit.stunnedTimer = 0.4;
+      unit.healTimer = 1.4;
+      unit.hp = Math.max(1, Math.ceil(unit.maxHp * 0.35));
+      return false;
+    }
+    if (unit.wounded && unit.hp <= 0) {
+      return true;
+    }
+    return false;
+  }
+
+  function wrapAngle(angle) {
+    return ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  }
+
+  function getWallAttackTarget(en) {
+    const city = state.city;
+    const angle = Math.atan2(en.y - city.y, en.x - city.x);
+    const normalized = wrapAngle(angle);
+
+    let bestGate = null;
+    let bestGateDist = Infinity;
+    for (const gate of city.gates) {
+      if (gate.hp <= 0) continue;
+      const dist = Math.min(Math.abs(wrapAngle(gate.angle - normalized)), Math.PI * 2 - Math.abs(wrapAngle(gate.angle - normalized)));
+      if (dist < gate.width / 2 + 0.18 && dist < bestGateDist) {
+        bestGate = gate;
+        bestGateDist = dist;
+      }
+    }
+    if (bestGate) return { type: 'gate', target: bestGate };
+
+    let bestSegment = null;
+    let bestSegDist = Infinity;
+    for (const segment of city.wallSegments) {
+      if (segment.hp <= 0) continue;
+      const mid = (segment.start + segment.end) / 2;
+      const dist = Math.min(Math.abs(wrapAngle(mid - normalized)), Math.PI * 2 - Math.abs(wrapAngle(mid - normalized)));
+      if (dist < bestSegDist) {
+        bestSegment = segment;
+        bestSegDist = dist;
+      }
+    }
+    return bestSegment ? { type: 'segment', target: bestSegment } : { type: 'segment', target: city.wallSegments[0] };
+  }
+
+  function updateWallIntegrity() {
+    const city = state.city;
+    const totalHp = city.wallSegments.reduce((sum, seg) => sum + Math.max(0, seg.hp), 0) + city.gates.reduce((sum, gate) => sum + Math.max(0, gate.hp), 0);
+    city.wallHp = Math.max(0, totalHp);
+    if (city.wallHp <= 0) city.wallsDown = true;
+  }
+
+  function chooseEnemyTarget(en) {
+    const nearbyAllies = state.allies.filter(al => Math.hypot(al.x - en.x, al.y - en.y) < 240);
+    if (en.weapon === 'bow' && nearbyAllies.length) {
+      nearbyAllies.sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y));
+      const target = nearbyAllies[0];
+      const dir = Math.atan2(target.y - en.y, target.x - en.x);
+      return {
+        x: target.x - Math.cos(dir) * 96,
+        y: target.y - Math.sin(dir) * 96,
+      };
+    }
+
+    if (nearbyAllies.length) {
+      nearbyAllies.sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y));
+      const target = nearbyAllies[0];
+      return {
+        x: target.x + Math.cos(en.homeAngle + en.spreadOffset * 0.8) * 12,
+        y: target.y + Math.sin(en.homeAngle + en.spreadOffset * 0.8) * 12,
+      };
+    }
+
+    if (state.territory.length) {
+      const candidates = state.territory
+        .filter(cell => Math.hypot(cell.x - state.city.x, cell.y - state.city.y) < state.city.wallRadius + 140)
+        .sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y));
+      if (candidates.length) {
+        const cell = candidates[Math.min(candidates.length - 1, Math.floor(Math.random() * Math.min(3, candidates.length)))];
+        const offset = 20 + Math.abs(en.spreadOffset) * 28;
+        return {
+          x: cell.x + Math.cos(en.homeAngle + en.spreadOffset) * offset,
+          y: cell.y + Math.sin(en.homeAngle + en.spreadOffset) * offset,
+        };
+      }
+    }
+
+    const baseAngle = en.homeAngle + en.spreadOffset * 0.7;
+    const radius = state.city.wallRadius * 0.78 + Math.abs(en.spreadOffset) * 28;
+    return {
+      x: state.city.x + Math.cos(baseAngle) * radius,
+      y: state.city.y + Math.sin(baseAngle) * radius,
+    };
   }
 
   // ── Update ──────────────────────────────────────────────────────────────────
@@ -333,10 +502,6 @@
     if (state.dayTimer >= state.dayDuration) {
       state.dayTimer = 0;
       state.dayCount += 1;
-      if      (state.timePhase === 'Dawn')  state.timePhase = 'Day';
-      else if (state.timePhase === 'Day')   state.timePhase = 'Dusk';
-      else if (state.timePhase === 'Dusk')  state.timePhase = 'Night';
-      else                                  state.timePhase = 'Dawn';
     }
 
     if (!state.city.collapsing && state.waveCooldown <= 0) spawnWave();
@@ -357,9 +522,9 @@
       for (let j = state.enemies.length - 1; j >= 0; j--) {
         const en = state.enemies[j];
         if (Math.hypot(b.x - en.x, b.y - en.y) <= b.radius + en.radius) {
-          en.hp -= b.power;
+          const dead = applyUnitDamage(en, b.power);
           state.bullets.splice(i, 1);
-          if (en.hp <= 0) { state.enemies.splice(j, 1); state.redCasualties++; state.gold += 5; }
+          if (dead) { state.enemies.splice(j, 1); state.redCasualties++; state.gold += 5; }
           hit = true; break;
         }
       }
@@ -381,20 +546,38 @@
         en.y = state.city.y - (dy / dist) * wallDist;
         en.attackTimer = 0;
       }
-      if (!en.atWall || state.city.wallsDown) { en.x += (dx / dist) * en.speed * dt; en.y += (dy / dist) * en.speed * dt; }
+      if (!en.atWall || state.city.wallsDown) {
+        const targetPoint = chooseEnemyTarget(en);
+        const tx = targetPoint.x - en.x;
+        const ty = targetPoint.y - en.y;
+        const td = Math.hypot(tx, ty) || 1;
+        en.x += (tx / td) * en.speed * dt;
+        en.y += (ty / td) * en.speed * dt;
+      }
 
       let enemyHitAlly = false;
       for (let j = state.allies.length - 1; j >= 0; j--) {
         const al = state.allies[j];
         if (Math.hypot(al.x - en.x, al.y - en.y) <= en.radius + al.radius) {
-          al.hp -= 18 * dt; en.hp -= 9 * dt; enemyHitAlly = true;
-          if (al.hp <= 0) { state.allies.splice(j, 1); state.blueCasualties++; }
+          const enEffectiveness = getUnitEffectiveness(en);
+          const allyDamage = 12 * dt * (0.6 + enEffectiveness * 0.4);
+          const counterDamage = 7 * dt * (0.55 + getUnitEffectiveness(al) * 0.45);
+          const allyDead = applyUnitDamage(al, allyDamage);
+          const enemyDead = applyUnitDamage(en, counterDamage);
+          enemyHitAlly = true;
+          if (allyDead) { state.allies.splice(j, 1); state.blueCasualties++; }
+          if (enemyDead) { state.enemies.splice(i, 1); state.redCasualties++; state.gold += 5; continue; }
         }
       }
 
       if (en.hp <= 0) { state.enemies.splice(i, 1); state.redCasualties++; state.gold += 5; continue; }
 
-      if (!state.city.wallsDown && en.atWall && !enemyHitAlly && Math.random() < 0.7) {
+      if (en.stunnedTimer > 0) {
+        en.stunnedTimer = Math.max(0, en.stunnedTimer - dt);
+      }
+
+      const canBreachWall = en.weapon === 'spear';
+      if (!state.city.wallsDown && en.atWall && !enemyHitAlly && !en.retreating && en.stunnedTimer <= 0 && canBreachWall && Math.random() < 0.7) {
         en.attackTimer += dt;
         if (en.attackTimer >= en.attackRate) {
           en.attackTimer = 0;
@@ -405,14 +588,19 @@
               state.enemies.forEach(e => { e.atWall = false; });
             }
           } else {
-            state.city.wallHp -= 4;
-            if (state.city.wallHp <= 0) { state.city.wallHp = 0; state.city.wallsDown = true; }
+            const wallTarget = getWallAttackTarget(en);
+            if (wallTarget.type === 'gate') {
+              wallTarget.target.hp -= 6;
+            } else {
+              wallTarget.target.hp -= 4;
+            }
+            updateWallIntegrity();
           }
         }
       }
 
       // Bow enemies shoot at nearby targets
-      if (en.weapon === 'bow') {
+      if (en.weapon === 'bow' && !en.retreating && en.stunnedTimer <= 0) {
         en.shootCooldown = Math.max(0, en.shootCooldown - dt);
         if (en.shootCooldown <= 0) {
           const BOW_RANGE = 180;
@@ -448,7 +636,7 @@
     if (pD > maxD) { const s = maxD / pD; state.player.x = state.city.x + pdx * s; state.player.y = state.city.y + pdy * s; }
 
     if (state.player.cooldown > 0) state.player.cooldown = Math.max(0, state.player.cooldown - dt);
-    if (state.player.charging) state.player.chargeTime += dt;
+    if (state.player.charging) state.player.chargeTime += dt * 1.8;
 
     if (state.city.collapsing) {
       state.city.collapseTimer += dt;
@@ -464,26 +652,41 @@
       const al = state.allies[i];
       if (al.hp <= 0) { state.allies.splice(i, 1); continue; }
       if (al.attackCooldown > 0) al.attackCooldown -= dt;
+      if (al.stunnedTimer > 0) al.stunnedTimer = Math.max(0, al.stunnedTimer - dt);
 
-      let target = null, nearest = Infinity;
-      for (const en of state.enemies) {
-        const d = Math.hypot(en.x - al.x, en.y - al.y);
-        if (d < nearest && Math.hypot(en.x - state.city.x, en.y - state.city.y) < state.city.wallRadius + 80) { nearest = d; target = en; }
-      }
-
-      if (target) {
-        const dx = target.x - al.x, dy = target.y - al.y, dist = Math.hypot(dx, dy) || 1;
-        if (dist > al.radius + target.radius + 70) { al.x += (dx/dist)*al.speed*dt; al.y += (dy/dist)*al.speed*dt; }
-        if (dist <= al.radius + target.radius + 90 && al.attackCooldown <= 0) {
-          const sd = Math.hypot(target.x - al.x, target.y - al.y) || 1;
-          state.alliedShots.push({ x: al.x, y: al.y, vx: ((target.x-al.x)/sd)*220, vy: ((target.y-al.y)/sd)*220, radius: 3, life: 0.75, fromEnemy: false });
-          al.attackCooldown = al.attackRate;
+      if (al.retreating) {
+        const dx = al.homeX - al.x, dy = al.homeY - al.y, dist = Math.hypot(dx, dy) || 1;
+        if (dist > 8) { al.x += (dx/dist)*al.speed*0.65*dt; al.y += (dy/dist)*al.speed*0.65*dt; }
+        if (dist <= 16) {
+          al.retreating = false;
+          al.healTimer = 1.4;
+        }
+      } else if (al.healTimer > 0) {
+        al.healTimer = Math.max(0, al.healTimer - dt);
+        if (al.healTimer <= 0 && al.hp < al.maxHp) {
+          al.hp = Math.min(al.maxHp, al.hp + dt * 8);
         }
       } else {
-        const hx = state.city.x + Math.cos(al.homeAngle)*al.homeRadius;
-        const hy = state.city.y + Math.sin(al.homeAngle)*al.homeRadius;
-        const dx = hx - al.x, dy = hy - al.y, dist = Math.hypot(dx, dy) || 1;
-        if (dist > 8) { al.x += (dx/dist)*al.speed*0.7*dt; al.y += (dy/dist)*al.speed*0.7*dt; }
+        let target = null, nearest = Infinity;
+        for (const en of state.enemies) {
+          const d = Math.hypot(en.x - al.x, en.y - al.y);
+          if (d < nearest && Math.hypot(en.x - state.city.x, en.y - state.city.y) < state.city.wallRadius + 80) { nearest = d; target = en; }
+        }
+
+        if (target) {
+          const dx = target.x - al.x, dy = target.y - al.y, dist = Math.hypot(dx, dy) || 1;
+          if (dist > al.radius + target.radius + 70) { al.x += (dx/dist)*al.speed*dt; al.y += (dy/dist)*al.speed*dt; }
+          if (dist <= al.radius + target.radius + 90 && al.attackCooldown <= 0 && al.stunnedTimer <= 0) {
+            const sd = Math.hypot(target.x - al.x, target.y - al.y) || 1;
+            state.alliedShots.push({ x: al.x, y: al.y, vx: ((target.x-al.x)/sd)*220, vy: ((target.y-al.y)/sd)*220, radius: 3, life: 0.75, fromEnemy: false });
+            al.attackCooldown = al.attackRate;
+          }
+        } else {
+          const hx = al.homeX;
+          const hy = al.homeY;
+          const dx = hx - al.x, dy = hy - al.y, dist = Math.hypot(dx, dy) || 1;
+          if (dist > 8) { al.x += (dx/dist)*al.speed*0.7*dt; al.y += (dy/dist)*al.speed*0.7*dt; }
+        }
       }
 
       const dx = al.x - state.city.x, dy = al.y - state.city.y, dist = Math.hypot(dx, dy);
@@ -503,9 +706,9 @@
       for (let j = targets.length - 1; j >= 0; j--) {
         const t = targets[j];
         if (Math.hypot(s.x - t.x, s.y - t.y) <= s.radius + t.radius) {
-          t.hp -= s.fromEnemy ? 2 : 3;
+          const dead = applyUnitDamage(t, s.fromEnemy ? 2 : 3);
           state.alliedShots.splice(i, 1);
-          if (t.hp <= 0) {
+          if (dead) {
             if (s.fromEnemy) { state.allies.splice(j, 1);  state.blueCasualties++; }
             else             { state.enemies.splice(j, 1); state.redCasualties++; state.gold += 5; }
           }
@@ -517,22 +720,52 @@
   }
 
   function updateTerritory() {
-    if (!state.city.wallsDown) { state.territory.forEach(c => c.owner = 'blue'); return; }
+    if (!state.city.wallsDown) {
+      state.territory.forEach(c => { c.owner = 'blue'; c.claimedBy = 'blue'; });
+      state.territoryControl = 'blue';
+      return;
+    }
+
+    let blueCount = 0;
+    let redCount = 0;
+
     state.territory.forEach(cell => {
       let blue = 0, red = 0;
       for (const al of state.allies)  if (Math.hypot(al.x - cell.x, al.y - cell.y) < 44) blue++;
       for (const en of state.enemies) if (Math.hypot(en.x - cell.x, en.y - cell.y) < 44) red++;
-      cell.owner = red > blue + 1 ? 'red' : blue > red + 1 ? 'blue' : 'neutral';
+
+      if (red > blue + 1) {
+        cell.owner = 'red';
+      } else if (blue > red + 1) {
+        cell.owner = 'blue';
+      } else if (cell.owner === 'red' && blue === 0 && red === 0) {
+        cell.owner = cell.claimedBy || 'neutral';
+      } else if (cell.owner === 'blue' && blue === 0 && red === 0) {
+        cell.owner = cell.claimedBy || 'neutral';
+      } else {
+        cell.owner = cell.owner || 'neutral';
+      }
+
+      if (cell.owner === 'blue') blueCount++;
+      if (cell.owner === 'red') redCount++;
     });
-    if (state.territory.filter(c => c.owner === 'red').length / state.territory.length >= 0.6) state.gameOver = true;
+
+    if (redCount / state.territory.length >= 0.6) state.gameOver = true;
+    state.territoryControl = redCount > blueCount ? 'red' : blueCount > redCount ? 'blue' : 'neutral';
   }
 
   // ── Draw ────────────────────────────────────────────────────────────────────
   function drawBackground() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#2b1515'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const city = state.city;
+    ctx.fillStyle = '#5c0600';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const zoneColor = state.territoryControl === 'red' ? 'rgba(255,92,92,0.18)' : state.territoryControl === 'blue' ? 'rgba(10,42,89,0.22)' : 'rgba(255,255,255,0.08)';
+    ctx.fillStyle = zoneColor;
+    ctx.beginPath(); ctx.arc(city.x, city.y, city.wallRadius, 0, Math.PI * 2); ctx.fill();
+
     const dangerRadius = city.wallRadius + 24;
     const bad = state.gameOver || city.collapsing;
     const baseColor  = bad ? '#e25656' : '#d24545';
@@ -560,23 +793,32 @@
       ctx.closePath(); ctx.fill();
     }
 
-    // Main wall — thickness + colour scale with level
+    // Main wall — segmented and solid
     const wallW = city.wallLevel === 1 ? 14 : city.wallLevel === 2 ? 20 : 28;
-    const wallColor = city.wallsDown ? '#7b2727'
-      : city.wallLevel === 1 ? '#1b3f76'
-      : city.wallLevel === 2 ? '#2d6ad4'
-      : '#4d94ff';
-    ctx.strokeStyle = wallColor; ctx.lineWidth = wallW;
-    ctx.beginPath(); ctx.arc(city.x, city.y, city.wallRadius, 0, Math.PI*2); ctx.stroke();
-    // Gold trim at level 3
-    if (city.wallLevel >= 3 && !city.wallsDown) {
-      ctx.strokeStyle = 'rgba(255,215,0,0.55)'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 6]);
-      ctx.beginPath(); ctx.arc(city.x, city.y, city.wallRadius + wallW/2 + 2, 0, Math.PI*2); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.setLineDash([14, 8]);
-    ctx.beginPath(); ctx.arc(city.x, city.y, city.wallRadius + 28, 0, Math.PI*2); ctx.stroke();
-    ctx.setLineDash([]);
+    const wallColor = city.wallsDown ? '#7a7a7a' : '#7a7a7a';
+    city.wallSegments.forEach(segment => {
+      if (segment.hp <= 0) return;
+      const ratio = segment.hp / segment.maxHp;
+      ctx.strokeStyle = ratio > 0.6 ? wallColor : ratio > 0.3 ? '#2f5fd2' : '#6aa0ff';
+      ctx.lineWidth = Math.max(3, wallW * (0.65 + ratio * 0.45));
+      ctx.beginPath();
+      ctx.arc(city.x, city.y, city.wallRadius, segment.start, segment.end);
+      ctx.stroke();
+    });
+    city.gates.forEach(gate => {
+      if (gate.hp <= 0) return;
+      const ratio = gate.hp / gate.maxHp;
+      ctx.strokeStyle = ratio > 0.5 ? '#7a4b1f' : '#a66a2f';
+      ctx.lineWidth = Math.max(7, wallW + 8);
+      ctx.beginPath();
+      ctx.arc(city.x, city.y, city.wallRadius, gate.angle - gate.width / 2, gate.angle + gate.width / 2);
+      ctx.stroke();
+      ctx.strokeStyle = ratio > 0.5 ? '#d7b07a' : '#8c5a2b';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(city.x, city.y, city.wallRadius, gate.angle - gate.width / 2, gate.angle + gate.width / 2);
+      ctx.stroke();
+    });
 
     // Outer wall ring
     if (city.outerWall.active) {
@@ -600,12 +842,12 @@
 
     // Tension ring — grows while charging
     const p = state.player;
-    if (p.charging && p.chargeTime >= 0.3) {
-      const ct = Math.min(p.chargeTime, 3.0);
-      const rgb = ct < 1.0 ? '68,204,68' : ct < 2.0 ? '255,215,0' : '255,51,51';
-      const alpha = (0.35 + (ct / 3.0) * 0.3).toFixed(2);
+    if (p.charging && p.chargeTime >= 0.25) {
+      const ct = Math.min(p.chargeTime, CHARGE_MAX);
+      const rgb = ct < 0.8 ? '68,204,68' : ct < 1.6 ? '255,215,0' : '255,51,51';
+      const alpha = (0.35 + (ct / CHARGE_MAX) * 0.3).toFixed(2);
       ctx.strokeStyle = `rgba(${rgb},${alpha})`; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 28 + (ct / 3.0) * 10, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 28 + (ct / CHARGE_MAX) * 10, 0, Math.PI*2); ctx.stroke();
     }
   }
 
@@ -629,9 +871,9 @@
 
     if (p.charging) {
       const ct = p.chargeTime;
-      const over = ct >= 3.0;
+      const over = ct >= CHARGE_MAX;
       const alpha = over ? (0.15 + 0.1 * Math.sin(ct * 18)).toFixed(2) : Math.min(1, 0.4 + ct * 0.4).toFixed(2);
-      const tipLen = over ? 8 : 10 + Math.min(ct / 3.0, 1) * 8;
+      const tipLen = over ? 8 : 10 + Math.min(ct / CHARGE_MAX, 1) * 8;
       ctx.strokeStyle = `rgba(200,161,77,${alpha})`; ctx.lineWidth = over ? 1 : 2;
       ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(tipLen, 0); ctx.stroke();
     }
@@ -651,18 +893,18 @@
 
     if (p.charging) {
       const ct = p.chargeTime;
-      const MAX = 3.0;
-      const over = ct >= MAX;
-      const fillW = Math.min(ct / MAX, 1) * BAR_W;
+      const max = CHARGE_MAX;
+      const over = ct >= max;
+      const fillW = Math.min(ct / max, 1) * BAR_W;
       const col = over
         ? (Math.sin(ct * 22) > 0 ? '#ff1111' : '#ff9900')
-        : ct >= 2.0 ? '#dd3333'
-        : ct >= 1.0 ? '#f0c020'
-        : ct >= 0.3 ? '#33cc55'
+        : ct >= 1.6 ? '#dd3333'
+        : ct >= 0.8 ? '#f0c020'
+        : ct >= 0.25 ? '#33cc55'
         : '#777777';
       ctx.fillStyle = col; ctx.fillRect(bx, by, fillW, BAR_H);
       ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1;
-      [0.3/MAX, 1.0/MAX, 2.0/MAX].forEach(t => {
+      [0.25/max, 0.8/max, 1.6/max].forEach(t => {
         const mx = bx + t * BAR_W;
         ctx.beginPath(); ctx.moveTo(mx, by); ctx.lineTo(mx, by + BAR_H); ctx.stroke();
       });
@@ -686,17 +928,40 @@
   function drawAlliedShots() {
     state.alliedShots.forEach(s => {
       ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(Math.atan2(s.vy, s.vx));
-      ctx.strokeStyle = s.fromEnemy ? '#8a2d2d' : '#86c5ff'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(8, 0); ctx.stroke();
-      ctx.fillStyle = s.fromEnemy ? '#b85656' : '#4b8fd1';
-      ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
+      if (s.fromEnemy) {
+        ctx.strokeStyle = '#8a2d2d'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(8, 0); ctx.stroke();
+        ctx.fillStyle = '#b85656';
+        ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
+      } else {
+        ctx.strokeStyle = '#c7a36a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(8, 0); ctx.stroke();
+        ctx.fillStyle = '#7a4b1d';
+        ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
+      }
       ctx.restore();
     });
   }
 
   function drawTerritory() {
+    const blueCells = state.territory.filter(cell => cell.owner === 'blue');
+    const redCells = state.territory.filter(cell => cell.owner === 'red');
+
+    if (blueCells.length && redCells.length) {
+      const mixRatio = blueCells.length / state.territory.length;
+      const blend = Math.max(0.18, Math.min(0.9, 0.5 + (mixRatio - 0.5) * 0.8));
+      ctx.fillStyle = `rgba(77,125,255,${0.16 + blend * 0.08})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (redCells.length) {
+      ctx.fillStyle = 'rgba(255,92,92,0.14)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (blueCells.length) {
+      ctx.fillStyle = 'rgba(77,125,255,0.14)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
     state.territory.forEach(cell => {
-      ctx.fillStyle = cell.owner === 'blue' ? 'rgba(77,125,255,0.28)' : cell.owner === 'red' ? 'rgba(255,92,92,0.28)' : 'rgba(255,255,255,0.08)';
+      ctx.fillStyle = cell.owner === 'blue' ? 'rgba(77,125,255,0.34)' : cell.owner === 'red' ? 'rgba(255,92,92,0.34)' : 'rgba(255,255,255,0.09)';
       ctx.fillRect(cell.x - cell.size/2, cell.y - cell.size/2, cell.size, cell.size);
       ctx.strokeStyle = 'rgba(255,255,255,0.12)';
       ctx.strokeRect(cell.x - cell.size/2, cell.y - cell.size/2, cell.size, cell.size);
@@ -764,7 +1029,7 @@
   const releaseCharge = () => {
     if (!state.player.charging) return;
     const ct = state.player.chargeTime;
-    if (ct >= 0.3 && ct < 3.0) shoot(ct);
+    if (ct >= 0.2) shoot(Math.min(ct, CHARGE_MAX));
     state.player.charging = false;
     state.player.chargeTime = 0;
   };
@@ -780,6 +1045,10 @@
     const c = toCanvas(e); state.mouseX = c.x; state.mouseY = c.y;
     if (e.button === 0) releaseCharge();
   });
+  hud.buttons.recruit.addEventListener('click', recruitAlly);
+  hud.buttons.reinforce.addEventListener('click', upgradeWall);
+  hud.buttons.outer.addEventListener('click', buildOuterWall);
+
   window.addEventListener('keydown', e => {
     if (e.code === 'Space') { e.preventDefault(); startCharge(); }
     if (e.code === 'KeyR') recruitAlly();
