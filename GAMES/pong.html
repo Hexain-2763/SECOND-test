@@ -30,6 +30,7 @@
 
     const BALL_SIZE = 15, PAD_W = 10, PAD_H = 80;
     const PADDLE_SPEED = 6, BALL_SPEED = 5, WIN_SCORE = 7;
+    const P1_COLOR = "#87CEEB", P2_COLOR = "#FF3333";
 
     let score1 = 0, score2 = 0;
     let bx, by, bdx, bdy;
@@ -87,6 +88,20 @@
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
 
+      // left glow (sky blue fading from left edge to center)
+      const lgLeft = ctx.createLinearGradient(0, 0, W / 2, 0);
+      lgLeft.addColorStop(0, P1_COLOR + "1A");
+      lgLeft.addColorStop(1, "transparent");
+      ctx.fillStyle = lgLeft;
+      ctx.fillRect(0, 0, W / 2, H);
+
+      // right glow (red fading from right edge to center)
+      const lgRight = ctx.createLinearGradient(W / 2, 0, W, 0);
+      lgRight.addColorStop(0, "transparent");
+      lgRight.addColorStop(1, P2_COLOR + "1A");
+      ctx.fillStyle = lgRight;
+      ctx.fillRect(W / 2, 0, W / 2, H);
+
       // center line
       ctx.setLineDash([10, 10]);
       ctx.strokeStyle = "gray";
@@ -102,11 +117,19 @@
       ctx.textAlign = "center";
       ctx.fillText(`${score1} : ${score2}`, W / 2, 40);
 
-      // paddles
-      ctx.fillStyle = "cyan";
-      ctx.fillRect(30, p1y, PAD_W, PAD_H);
-      ctx.fillStyle = "magenta";
-      ctx.fillRect(W - 30 - PAD_W, p2y, PAD_W, PAD_H);
+      // paddles (rounded capsule)
+      function drawCapsule(x, y, w, h, color) {
+        const r = w / 2;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x + r, y + r, r, Math.PI, 0);
+        ctx.lineTo(x + w - r, y + h - r);
+        ctx.arc(x + r, y + h - r, r, 0, Math.PI);
+        ctx.closePath();
+        ctx.fill();
+      }
+      drawCapsule(30, p1y, PAD_W, PAD_H, P1_COLOR);
+      drawCapsule(W - 30 - PAD_W, p2y, PAD_W, PAD_H, P2_COLOR);
 
       // ball
       ctx.fillStyle = "white";

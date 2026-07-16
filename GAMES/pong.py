@@ -9,6 +9,9 @@ BALL_SPEED_X = 5
 BALL_SPEED_Y = 5
 WIN_SCORE = 7
 
+P1_COLOR = (135, 206, 235)  # sky blue
+P2_COLOR = (255, 51, 51)    # red
+
 class Pong:
     def __init__(self):
         self.root = tk.Tk()
@@ -17,9 +20,13 @@ class Pong:
         self.canvas = tk.Canvas(self.root, width=WIDTH, height=HEIGHT, bg="black", highlightthickness=0)
         self.canvas.pack()
 
+        self.draw_gradient()
+
         self.ball = self.canvas.create_oval(0, 0, BALL_SIZE, BALL_SIZE, fill="white")
-        self.p1 = self.canvas.create_rectangle(0, 0, PAD_W, PAD_H, fill="cyan")
-        self.p2 = self.canvas.create_rectangle(0, 0, PAD_W, PAD_H, fill="magenta")
+        p1_hex = f"#{P1_COLOR[0]:02x}{P1_COLOR[1]:02x}{P1_COLOR[2]:02x}"
+        p2_hex = f"#{P2_COLOR[0]:02x}{P2_COLOR[1]:02x}{P2_COLOR[2]:02x}"
+        self.p1 = self._rounded_paddle(p1_hex)
+        self.p2 = self._rounded_paddle(p2_hex)
 
         self.score_text = self.canvas.create_text(WIDTH // 2, 40, text="0 : 0", fill="white",
                                                     font=("Consolas", 36), anchor="center")
@@ -48,9 +55,51 @@ class Pong:
         self.canvas.focus_set()
         self.game_loop()
 
+    def draw_gradient(self):
+        half = WIDTH // 2
+        step = 4
+        for x in range(0, half, step):
+            factor = (1 - x / half) * 0.15
+            r = int(P1_COLOR[0] * factor)
+            g = int(P1_COLOR[1] * factor)
+            b = int(P1_COLOR[2] * factor)
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            self.canvas.create_rectangle(x, 0, x + step, HEIGHT, fill=color, outline="", tags="glow")
+        for x in range(0, half, step):
+            factor = (1 - x / half) * 0.15
+            r = int(P2_COLOR[0] * factor)
+            g = int(P2_COLOR[1] * factor)
+            b = int(P2_COLOR[2] * factor)
+            color = f"#{r:02x}{g:02x}{b:02x}"
+            self.canvas.create_rectangle(WIDTH - x - step, 0, WIDTH - x, HEIGHT, fill=color, outline="", tags="glow")
+        self.canvas.tag_lower("glow")
+
+    def _rounded_paddle(self, color):
+        x1, y1, x2, y2 = 0, 0, PAD_W, PAD_H
+        r = PAD_W // 2
+        points = [
+            x1+r, y1, x2-r, y1, x2, y1, x2, y1+r,
+            x2, y2-r, x2, y2, x2-r, y2, x1+r, y2,
+            x1, y2, x1, y2-r, x1, y1+r, x1, y1
+        ]
+        return self.canvas.create_polygon(points, smooth=True, fill=color, outline="")
+
+    def _rounded_coords(self, x, y):
+        x2, y2 = x + PAD_W, y + PAD_H
+        r = PAD_W // 2
+        return [
+            x+r, y, x2-r, y, x2, y, x2, y+r,
+            x2, y2-r, x2, y2, x2-r, y2, x+r, y2,
+            x, y2, x, y2-r, x, y+r, x, y
+        ]
+
     def reset_positions(self):
-        self.canvas.coords(self.p1, 30, HEIGHT // 2 - PAD_H // 2, 30 + PAD_W, HEIGHT // 2 + PAD_H // 2)
-        self.canvas.coords(self.p2, WIDTH - 30 - PAD_W, HEIGHT // 2 - PAD_H // 2, WIDTH - 30, HEIGHT // 2 + PAD_H // 2)
+        self.p1x = 30
+        self.p1y = HEIGHT // 2 - PAD_H // 2
+        self.p2x = WIDTH - 30 - PAD_W
+        self.p2y = HEIGHT // 2 - PAD_H // 2
+        self.canvas.coords(self.p1, *self._rounded_coords(self.p1x, self.p1y))
+        self.canvas.coords(self.p2, *self._rounded_coords(self.p2x, self.p2y))
         self.bx = WIDTH // 2 - BALL_SIZE // 2
         self.by = HEIGHT // 2 - BALL_SIZE // 2
         self.canvas.coords(self.ball, self.bx, self.by, self.bx + BALL_SIZE, self.by + BALL_SIZE)
@@ -62,14 +111,10 @@ class Pong:
     def move_paddles(self):
         p1_dir = -1 if "w" in self.pressed else (1 if "s" in self.pressed else 0)
         p2_dir = -1 if "Up" in self.pressed else (1 if "Down" in self.pressed else 0)
-        for p, d in [(self.p1, p1_dir), (self.p2, p2_dir)]:
-            x1, y1, x2, y2 = self.canvas.coords(p)
-            ny = y1 + d * PADDLE_SPEED
-            if ny < 0:
-                ny = 0
-            if ny + PAD_H > HEIGHT:
-                ny = HEIGHT - PAD_H
-            self.canvas.coords(p, x1, ny, x2, ny + PAD_H)
+        self.p1y = max(0, min(HEIGHT - PAD_H, self.p1y + p1_dir * PADDLE_SPEED))
+        self.p2y = max(0, min(HEIGHT - PAD_H, self.p2y + p2_dir * PADDLE_SPEED))
+        self.canvas.coords(self.p1, *self._rounded_coords(self.p1x, self.p1y))
+        self.canvas.coords(self.p2, *self._rounded_coords(self.p2x, self.p2y))
 
     def move_ball(self):
         self.bx += self.bdx
@@ -79,15 +124,14 @@ class Pong:
             self.bdy = -self.bdy
             self.by = max(0, min(self.by, HEIGHT - BALL_SIZE))
 
-        p1_coords = self.canvas.coords(self.p1)
-        p2_coords = self.canvas.coords(self.p2)
-
         ball_box = (self.bx, self.by, self.bx + BALL_SIZE, self.by + BALL_SIZE)
+        p1_box = (self.p1x, self.p1y, self.p1x + PAD_W, self.p1y + PAD_H)
+        p2_box = (self.p2x, self.p2y, self.p2x + PAD_W, self.p2y + PAD_H)
 
-        for pad_coords in [p1_coords, p2_coords]:
-            if self.ball_hits_paddle(ball_box, pad_coords):
+        for pad_box in [p1_box, p2_box]:
+            if self.ball_hits_paddle(ball_box, pad_box):
                 self.bdx = -self.bdx
-                overlap = (ball_box[1] + ball_box[3]) / 2 - (pad_coords[1] + pad_coords[3]) / 2
+                overlap = (ball_box[1] + ball_box[3]) / 2 - (pad_box[1] + pad_box[3]) / 2
                 self.bdy = overlap * 0.2
                 if abs(self.bdy) < 2:
                     self.bdy = 2 if self.bdy >= 0 else -2
