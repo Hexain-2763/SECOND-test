@@ -1,7 +1,7 @@
 import tkinter as tk
 import random
 
-WIDTH, HEIGHT = 800, 500
+WIDTH, HEIGHT = 1000, 650
 BALL_SIZE = 15
 PAD_W, PAD_H = 10, 80
 PADDLE_SPEED = 6

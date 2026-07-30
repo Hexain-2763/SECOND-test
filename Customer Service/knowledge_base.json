@@ -1,0 +1,96 @@
+{
+  "greeting": {
+    "patterns": ["hello", "hi", "hey", "good morning", "good evening", "greetings", "howdy", "sup", "what's up"],
+    "responses": [
+      "Hello! Welcome to our customer support. How can I help you today?",
+      "Hi there! What can I assist you with?",
+      "Hey! How can I help you?"
+    ]
+  },
+  "goodbye": {
+    "patterns": ["bye", "goodbye", "see you", "later", "take care", "goodnight", "cya"],
+    "responses": [
+      "Goodbye! Have a great day!",
+      "Thanks for reaching out. Take care!",
+      "See you later! Feel free to come back anytime."
+    ]
+  },
+  "order_status": {
+    "patterns": ["where is my order", "order status", "track order", "track my order", "order tracking", "when will my order arrive", "shipping status", "delivery status", "package status"],
+    "responses": [
+      "To check your order status, please visit our Orders page at /orders or provide your order number and I'll look it up for you.\n\nYou can find your order number in the confirmation email we sent you.",
+      "I'd be happy to help track your order! Please share your order number (e.g., #ORD-12345) and I'll check the status for you."
+    ]
+  },
+  "return_policy": {
+    "patterns": ["return", "refund", "money back", "send back", "return policy", "how to return", "return item", "returning", "exchange"],
+    "responses": [
+      "Our return policy:\n\n- **30-day returns**: Items can be returned within 30 days of delivery\n- **Original packaging**: Please return items in their original packaging\n- **Free returns**: We provide free return shipping labels\n- **Refund timeline**: Refunds are processed within 5-7 business days\n\nTo start a return, visit /returns or reply with your order number.",
+      "You can return most items within 30 days of delivery for a full refund. Go to /returns to initiate the process, or share your order number and I'll help you get started."
+    ]
+  },
+  "shipping_info": {
+    "patterns": ["shipping", "delivery", "how long", "when will it arrive", "shipping cost", "free shipping", "express shipping", "standard shipping", "delivery time"],
+    "responses": [
+      "Shipping options:\n\n- **Standard**: 5-7 business days (free on orders over $50)\n- **Express**: 2-3 business days ($9.99)\n- **Overnight**: Next business day ($19.99)\n\nAll orders are processed within 24 hours.",
+      "We offer Standard (5-7 days), Express (2-3 days), and Overnight shipping. Orders over $50 ship free!"
+    ]
+  },
+  "payment": {
+    "patterns": ["payment", "pay", "credit card", "debit card", "paypal", "apple pay", "google pay", "checkout", "billing", "charge", "price", "cost"],
+    "responses": [
+      "We accept the following payment methods:\n\n- Credit/Debit cards (Visa, Mastercard, Amex)\n- PayPal\n- Apple Pay\n- Google Pay\n\nAll transactions are secure and encrypted.",
+      "You can pay using credit/debit cards, PayPal, Apple Pay, or Google Pay. All payments are securely processed."
+    ]
+  },
+  "account_help": {
+    "patterns": ["account", "login", "sign in", "password", "reset password", "forgot password", "create account", "register", "sign up", "email address"],
+    "responses": [
+      "For account issues:\n\n- **Forgot password**: Click 'Forgot Password' on the login page\n- **Create account**: Visit /signup to create a free account\n- **Update email**: Go to Settings > Profile in your account\n\nNeed more help? Let me know the specific issue.",
+      "I can help with account issues! For password resets, use the 'Forgot Password' link on the login page. To create an account, visit /signup."
+    ]
+  },
+  "contact_support": {
+    "patterns": ["contact", "human", "real person", "agent", "support team", "speak to someone", "talk to someone", "customer service", "phone", "email support"],
+    "responses": [
+      "You can reach our support team:\n\n- **Email**: support@example.com\n- **Phone**: 1-800-555-0123 (Mon-Fri, 9AM-6PM EST)\n- **Live Chat**: Available 24/7 (you're using it now!)\n\nI'm here to help too — what do you need?",
+      "I'm here to help! If you need a human agent, you can email support@example.com or call 1-800-555-0123."
+    ]
+  },
+  "complaint": {
+    "patterns": ["complaint", "unhappy", "disappointed", "terrible", "worst", "awful", "frustrated", "angry", "annoyed", "not happy", "poor service", "bad experience"],
+    "responses": [
+      "I'm really sorry to hear about your experience. Your feedback is important to us.\n\nCould you tell me more about what happened? I'll do my best to resolve this for you, or connect you with a senior support agent.",
+      "I apologize for the inconvenience. Please share the details and I'll make sure we resolve this as quickly as possible."
+    ]
+  },
+  "thanks": {
+    "patterns": ["thank you", "thanks", "thx", "appreciate", "helpful", "great help", "awesome"],
+    "responses": [
+      "You're welcome! Is there anything else I can help with?",
+      "Happy to help! Let me know if you need anything else.",
+      "My pleasure! Don't hesitate to ask if you have more questions."
+    ]
+  },
+  "product_info": {
+    "patterns": ["product", "item", "details", "specifications", "features", "sizes", "colors", "available", "in stock", "out of stock"],
+    "responses": [
+      "I can help with product information! Please tell me which product you're interested in, or browse our catalog at /products.\n\nI can help with sizes, colors, availability, and specifications.",
+      "Sure! Which product are you looking for? I can provide details on availability, sizes, colors, and more."
+    ]
+  },
+  "warranty": {
+    "patterns": ["warranty", "guarantee", "defective", "broken", "damaged", "repair", "replacement"],
+    "responses": [
+      "Our warranty policy:\n\n- **1-year manufacturer warranty** on all products\n- **Extended warranty** available at checkout\n- **Defective items**: Free replacement within warranty period\n\nTo file a warranty claim, visit /warranty or share your order number.",
+      "All our products come with a 1-year warranty. If your item is defective, we'll replace it for free. Would you like to file a warranty claim?"
+    ]
+  },
+  "cancel_order": {
+    "patterns": ["cancel order", "cancel my order", "stop order", "don't want", "cancel my purchase"],
+    "responses": [
+      "To cancel your order:\n\n- **Within 1 hour** of placing: Auto-cancellable from your account\n- **After 1 hour**: Contact us and we'll try our best\n\nShare your order number and I'll check if it can still be cancelled.",
+      "I can help cancel your order! Please share your order number. Orders placed within the last hour can be cancelled instantly from your account."
+    ]
+  }
+}
